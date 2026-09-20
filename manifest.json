@@ -1,0 +1,54 @@
+{
+  "manifest_version": "0.2",
+  "name": "peek-mail",
+  "display_name": "Peek",
+  "version": "1.0.0",
+  "description": "Let Claude read your Gmail, safely. Read-only by construction — it provably cannot mark, move, delete, or send anything.",
+  "long_description": "Peek gives Claude read-only access to your Gmail inbox. Ask Claude to find, summarize, or pull details from your mail right inside a conversation.\n\nThe part that matters: Peek is read-only by design, not by promise. It opens your mailbox in IMAP read-only mode and only ever peeks at messages, so it cannot mark anything read, move it, delete it, or send on your behalf. The code has no write path at all — you can read it and confirm.\n\nNo servers and no cloud. Your credentials are stored in your operating system's keychain and never leave your machine. Revoke access any time from your Google account.",
+  "author": {
+    "name": "AIM Consulting LLC",
+    "url": "https://consultwithaim.com"
+  },
+  "homepage": "https://consultwithaim.com",
+  "license": "MIT",
+  "keywords": ["gmail", "email", "mail", "read-only", "imap", "inbox"],
+  "server": {
+    "type": "python",
+    "entry_point": "server/server.py",
+    "mcp_config": {
+      "command": "python3",
+      "args": ["${__dirname}/server/server.py"],
+      "env": {
+        "MAIL_EMAIL": "${user_config.email}",
+        "MAIL_APP_PASSWORD": "${user_config.app_password}"
+      }
+    }
+  },
+  "tools": [
+    {"name": "list_accounts", "description": "List the mail account configured for this extension."},
+    {"name": "search_mail", "description": "Search the mailbox with Gmail search syntax and return newest-first headlines with UIDs. Read-only."},
+    {"name": "read_message", "description": "Read one message (headers and plain-text body) by UID. Read-only — never marks as read."}
+  ],
+  "user_config": {
+    "email": {
+      "type": "string",
+      "title": "Gmail address",
+      "description": "The Gmail address to read, for example you@gmail.com",
+      "required": true
+    },
+    "app_password": {
+      "type": "string",
+      "title": "Gmail app password",
+      "description": "A 16-character app password from Google (myaccount.google.com/apppasswords). Requires 2-Step Verification. Read-only and revocable any time. Spaces are fine.",
+      "sensitive": true,
+      "required": true
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "python": ">=3.9"
+    }
+  }
+}

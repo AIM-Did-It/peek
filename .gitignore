@@ -1,0 +1,20 @@
+# Build artifact — the .mcpb is produced from source and attached as a Release,
+# not tracked in the repo.
+*.mcpb
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Local credentials — never commit real accounts.json
+server/accounts.json
