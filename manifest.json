@@ -2,16 +2,16 @@
   "manifest_version": "0.2",
   "name": "peek-mail",
   "display_name": "Peek",
-  "version": "1.0.0",
-  "description": "Let Claude read your Gmail, safely. Read-only by construction — it provably cannot mark, move, delete, or send anything.",
-  "long_description": "Peek gives Claude read-only access to your Gmail inbox. Ask Claude to find, summarize, or pull details from your mail right inside a conversation.\n\nThe part that matters: Peek is read-only by design, not by promise. It opens your mailbox in IMAP read-only mode and only ever peeks at messages, so it cannot mark anything read, move it, delete it, or send on your behalf. The code has no write path at all — you can read it and confirm.\n\nNo servers and no cloud. Your credentials are stored in your operating system's keychain and never leave your machine. Revoke access any time from your Google account.",
+  "version": "1.1.0",
+  "description": "Let Claude read your Gmail — one inbox or several — safely. Read-only by construction: it provably cannot mark, move, delete, or send anything.",
+  "long_description": "Peek gives Claude read-only access to your Gmail. Add one inbox or several (work, personal, business), and Claude can search and read across all of them in a single conversation — 'what did any of my accounts get from the bank this week?'\n\nThe part that matters: Peek is read-only by design, not by promise. It opens each mailbox in IMAP read-only mode and only ever peeks at messages, so it cannot mark anything read, move it, delete it, or send on your behalf — for any number of accounts. The code has no write path at all; you can read it and confirm.\n\nNo servers and no cloud. Your credentials are stored in your operating system's keychain and never leave your machine. Revoke any account's access any time from your Google account.",
   "author": {
     "name": "AIM Consulting LLC",
     "url": "https://consultwithaim.com"
   },
   "homepage": "https://consultwithaim.com",
   "license": "MIT",
-  "keywords": ["gmail", "email", "mail", "read-only", "imap", "inbox"],
+  "keywords": ["gmail", "email", "mail", "read-only", "imap", "inbox", "multi-account"],
   "server": {
     "type": "python",
     "entry_point": "server/server.py",
@@ -19,29 +19,59 @@
       "command": "python3",
       "args": ["${__dirname}/server/server.py"],
       "env": {
-        "MAIL_EMAIL": "${user_config.email}",
-        "MAIL_APP_PASSWORD": "${user_config.app_password}"
+        "MAIL_EMAIL_1": "${user_config.email}",
+        "MAIL_APP_PASSWORD_1": "${user_config.app_password}",
+        "MAIL_EMAIL_2": "${user_config.email_2}",
+        "MAIL_APP_PASSWORD_2": "${user_config.app_password_2}",
+        "MAIL_EMAIL_3": "${user_config.email_3}",
+        "MAIL_APP_PASSWORD_3": "${user_config.app_password_3}"
       }
     }
   },
   "tools": [
-    {"name": "list_accounts", "description": "List the mail account configured for this extension."},
-    {"name": "search_mail", "description": "Search the mailbox with Gmail search syntax and return newest-first headlines with UIDs. Read-only."},
-    {"name": "read_message", "description": "Read one message (headers and plain-text body) by UID. Read-only — never marks as read."}
+    {"name": "list_accounts", "description": "List the mail account(s) configured for this extension."},
+    {"name": "search_mail", "description": "Search across all configured accounts with Gmail syntax; newest-first, each result tagged with its account. Read-only."},
+    {"name": "read_message", "description": "Read one message (headers and plain-text body) by UID and account. Read-only — never marks as read."}
   ],
   "user_config": {
     "email": {
       "type": "string",
-      "title": "Gmail address",
-      "description": "The Gmail address to read, for example you@gmail.com",
+      "title": "Gmail address (account 1)",
+      "description": "The first Gmail address to read, for example you@gmail.com",
       "required": true
     },
     "app_password": {
       "type": "string",
-      "title": "Gmail app password",
-      "description": "A 16-character app password from Google (myaccount.google.com/apppasswords). Requires 2-Step Verification. Read-only and revocable any time. Spaces are fine.",
+      "title": "App password (account 1)",
+      "description": "A 16-character app password from Google (myaccount.google.com/apppasswords). Requires 2-Step Verification. Read-only and revocable any time.",
       "sensitive": true,
       "required": true
+    },
+    "email_2": {
+      "type": "string",
+      "title": "Gmail address (account 2, optional)",
+      "description": "A second inbox to read — work, business, etc. Leave blank if you only want one.",
+      "required": false
+    },
+    "app_password_2": {
+      "type": "string",
+      "title": "App password (account 2, optional)",
+      "description": "App password for the second account.",
+      "sensitive": true,
+      "required": false
+    },
+    "email_3": {
+      "type": "string",
+      "title": "Gmail address (account 3, optional)",
+      "description": "A third inbox to read. Leave blank if not needed.",
+      "required": false
+    },
+    "app_password_3": {
+      "type": "string",
+      "title": "App password (account 3, optional)",
+      "description": "App password for the third account.",
+      "sensitive": true,
+      "required": false
     }
   },
   "compatibility": {

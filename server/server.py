@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""Peek — read-only IMAP access to Gmail for Claude.
+"""Peek — read-only IMAP access to one or more Gmail inboxes, for Claude.
 
 Zero dependencies (Python standard library only).
 
-Credentials come from the host as environment variables (MAIL_EMAIL,
-MAIL_APP_PASSWORD), which Claude Desktop stores in the OS keychain and injects
-at launch. A local accounts.json beside this file is supported as a fallback
-for self-hosting and multiple accounts.
+Credentials come from the host as environment variables, which Claude Desktop
+stores in the OS keychain and injects at launch. Multiple accounts are
+supported: MAIL_EMAIL_1 / MAIL_APP_PASSWORD_1, MAIL_EMAIL_2 / MAIL_APP_PASSWORD_2,
+and so on. (MAIL_EMAIL / MAIL_APP_PASSWORD without a number also works as a
+single account.) A local accounts.json beside this file is honored as a
+fallback for self-hosting.
 
 Strictly read-only by construction: mailboxes are opened in IMAP EXAMINE
 (read-only) mode and every fetch uses BODY.PEEK, so nothing is ever marked
 read, moved, deleted, or sent. There is no STORE / COPY / APPEND / EXPUNGE /
-MOVE path anywhere in this file.
+MOVE path anywhere in this file, for any number of accounts.
 """
 import json, sys, os, imaplib, email, re, socket
 from email.header import decode_header, make_header
@@ -22,17 +24,30 @@ CONF = os.path.join(BASE, "accounts.json")
 socket.setdefaulttimeout(30)
 
 
-def load_accounts():
-    """Return {key: {email, app_password, host}}.
+def _clean(v):
+    return (v or "").strip()
 
-    Priority 1: a single account injected via environment (the bundle path).
+
+def load_accounts():
+    """Return {account_key: {email, app_password, host}}.
+
+    Priority 1: accounts injected via environment (the bundle path) — any of
+      MAIL_EMAIL_1/MAIL_APP_PASSWORD_1 .. MAIL_EMAIL_9/MAIL_APP_PASSWORD_9,
+      plus the un-numbered MAIL_EMAIL/MAIL_APP_PASSWORD. Each account is keyed
+      by its email address.
     Priority 2: accounts.json beside this file (self-host / multi-account).
     """
-    email_addr = os.environ.get("MAIL_EMAIL", "").strip()
-    pw = os.environ.get("MAIL_APP_PASSWORD", "").strip()
-    if email_addr and pw and "PASTE" not in pw:
-        return {"default": {"email": email_addr, "app_password": pw,
-                            "host": os.environ.get("MAIL_HOST", "imap.gmail.com")}}
+    out = {}
+    pairs = [("MAIL_EMAIL", "MAIL_APP_PASSWORD")]
+    pairs += [("MAIL_EMAIL_%d" % n, "MAIL_APP_PASSWORD_%d" % n) for n in range(1, 10)]
+    for ekey, pkey in pairs:
+        email_addr = _clean(os.environ.get(ekey))
+        pw = _clean(os.environ.get(pkey))
+        if email_addr and pw and "PASTE" not in pw:
+            out[email_addr] = {"email": email_addr, "app_password": pw,
+                               "host": os.environ.get("MAIL_HOST", "imap.gmail.com")}
+    if out:
+        return out
     if os.path.exists(CONF):
         with open(CONF) as f:
             cfg = json.load(f)
@@ -41,21 +56,18 @@ def load_accounts():
     return {}
 
 
-def resolve_account(args, accounts):
-    """Pick the account: the one named, or the only one configured."""
+def resolve_targets(args, accounts):
+    """Which accounts a call operates on: the one named, or all configured."""
     acct = args.get("account")
     if acct:
         if acct not in accounts:
             raise ValueError("Unknown account '%s'. Configured: %s"
                              % (acct, ", ".join(sorted(accounts)) or "none"))
-        return acct
-    if len(accounts) == 1:
-        return next(iter(accounts))
+        return [acct]
     if not accounts:
-        raise ValueError("No account configured. Add your Gmail address and app "
+        raise ValueError("No account configured. Add a Gmail address and app "
                          "password in the extension settings.")
-    raise ValueError("Multiple accounts configured; pass 'account' (one of: %s)."
-                     % ", ".join(sorted(accounts)))
+    return list(accounts)  # all
 
 
 def connect(acct, accounts):
@@ -103,53 +115,72 @@ def body_text(msg, limit=20000):
     return t[:limit] + ("\n…[truncated]" if len(t) > limit else "")
 
 
-def headline(m, uid):
+def headline(m, uid, acct):
     typ, data = m.uid("fetch", uid, "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])")
     if typ != "OK" or not data or data[0] is None:
         return None
     msg = email.message_from_bytes(data[0][1])
     try:
-        d = parsedate_to_datetime(msg.get("Date")).strftime("%Y-%m-%d %H:%M")
+        dt = parsedate_to_datetime(msg.get("Date"))
+        d = dt.strftime("%Y-%m-%d %H:%M")
+        sortkey = dt.timestamp()
     except Exception:
         d = msg.get("Date", "")
-    return {"uid": uid.decode() if isinstance(uid, bytes) else str(uid),
-            "date": d, "from": dh(msg.get("From")), "subject": dh(msg.get("Subject"))}
+        sortkey = 0
+    return {"account": acct, "uid": uid.decode() if isinstance(uid, bytes) else str(uid),
+            "date": d, "from": dh(msg.get("From")), "subject": dh(msg.get("Subject")),
+            "_sort": sortkey}
 
 
 def t_list_accounts(args):
     accounts = load_accounts()
-    out = [{"account": k, "email": v.get("email"), "configured": True}
-           for k, v in accounts.items()]
+    out = [{"account": k, "email": v.get("email"), "configured": True} for k, v in accounts.items()]
     if not out:
-        return "No account configured yet. Add your Gmail address and app password in the extension settings."
+        return "No account configured yet. Add a Gmail address and app password in the extension settings."
     return json.dumps(out, indent=1)
 
 
 def t_search(args):
     accounts = load_accounts()
-    acct = resolve_account(args, accounts)
+    targets = resolve_targets(args, accounts)   # one named account, or all
     q = args.get("query", "")
     limit = min(int(args.get("limit", 15)), 50)
-    m = connect(acct, accounts)
-    try:
-        m.select('"' + args.get("folder", "INBOX") + '"', readonly=True)
-        typ, data = m.uid("search", None, "X-GM-RAW", '"' + q.replace('"', "'") + '"') if q else m.uid("search", None, "ALL")
-        if typ != "OK":
-            return "Search failed."
-        uids = data[0].split()
-        uids = uids[-limit:][::-1]
-        rows = [h for u in uids if (h := headline(m, u))]
-        return json.dumps(rows, indent=1) if rows else "No messages matched."
-    finally:
+    rows = []
+    for acct in targets:
+        m = connect(acct, accounts)
         try:
-            m.logout()
-        except Exception:
-            pass
+            m.select('"' + args.get("folder", "INBOX") + '"', readonly=True)
+            typ, data = m.uid("search", None, "X-GM-RAW", '"' + q.replace('"', "'") + '"') if q else m.uid("search", None, "ALL")
+            if typ != "OK":
+                continue
+            uids = data[0].split()[-limit:][::-1]
+            for u in uids:
+                h = headline(m, u, acct)
+                if h:
+                    rows.append(h)
+        finally:
+            try:
+                m.logout()
+            except Exception:
+                pass
+    if not rows:
+        return "No messages matched."
+    rows.sort(key=lambda r: r.pop("_sort"), reverse=True)   # newest first across all accounts
+    return json.dumps(rows[:limit], indent=1)
 
 
 def t_read(args):
     accounts = load_accounts()
-    acct = resolve_account(args, accounts)
+    acct = args.get("account")
+    if not acct:
+        if len(accounts) == 1:
+            acct = next(iter(accounts))
+        else:
+            raise ValueError("Specify 'account' (one of: %s) — UIDs are per-account. "
+                             "Use the 'account' shown next to the message in search_mail."
+                             % ", ".join(sorted(accounts)))
+    if acct not in accounts:
+        raise ValueError("Unknown account '%s'. Configured: %s" % (acct, ", ".join(sorted(accounts)) or "none"))
     uid = str(args["uid"])
     m = connect(acct, accounts)
     try:
@@ -158,7 +189,8 @@ def t_read(args):
         if typ != "OK" or not data or data[0] is None:
             return "Message not found."
         msg = email.message_from_bytes(data[0][1])
-        head = {k: dh(msg.get(k)) for k in ("From", "To", "Date", "Subject")}
+        head = {"account": acct}
+        head.update({k: dh(msg.get(k)) for k in ("From", "To", "Date", "Subject")})
         return json.dumps(head, indent=1) + "\n\n" + body_text(msg)
     finally:
         try:
@@ -172,17 +204,17 @@ TOOLS = [
      "description": "List the mail account(s) configured for this extension.",
      "inputSchema": {"type": "object", "properties": {}}},
     {"name": "search_mail",
-     "description": "Search the mailbox with Gmail search syntax (e.g. 'from:alerts@bofa.com newer_than:2d', 'subject:invoice'). Returns newest-first headlines with UIDs. Read-only.",
+     "description": "Search mail with Gmail search syntax (e.g. 'from:alerts@bofa.com newer_than:2d', 'subject:invoice'). Searches ALL configured accounts and returns newest-first headlines, each tagged with its 'account'. Pass 'account' to search just one. Read-only.",
      "inputSchema": {"type": "object", "properties": {
-         "account": {"type": "string", "description": "Optional. Only needed if more than one account is configured."},
+         "account": {"type": "string", "description": "Optional. An account from list_accounts. Omit to search every configured account at once."},
          "query": {"type": "string", "description": "Gmail search syntax; empty = most recent."},
          "limit": {"type": "integer", "description": "Max results, default 15, max 50."},
          "folder": {"type": "string", "description": "IMAP folder, default INBOX. Use '[Gmail]/All Mail' for everything."}},
          "required": []}},
     {"name": "read_message",
-     "description": "Read one message (headers + plain-text body) by UID from search_mail. Read-only — never marks as read.",
+     "description": "Read one message (headers + plain-text body) by UID from search_mail. Pass the 'account' shown next to that message (UIDs are per-account). Read-only — never marks as read.",
      "inputSchema": {"type": "object", "properties": {
-         "account": {"type": "string", "description": "Optional. Only needed if more than one account is configured."},
+         "account": {"type": "string", "description": "The account the message belongs to (from search_mail). Optional only if a single account is configured."},
          "uid": {"type": "string"},
          "folder": {"type": "string", "description": "Must match the folder searched, default INBOX."}},
          "required": ["uid"]}},
@@ -215,7 +247,7 @@ def main():
         if method == "initialize":
             reply(mid, {"protocolVersion": params.get("protocolVersion", "2024-11-05"),
                         "capabilities": {"tools": {}},
-                        "serverInfo": {"name": "peek-mail", "version": "1.0.0"}})
+                        "serverInfo": {"name": "peek-mail", "version": "1.1.0"}})
         elif method == "tools/list":
             reply(mid, {"tools": TOOLS})
         elif method == "tools/call":

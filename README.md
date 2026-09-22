@@ -4,7 +4,7 @@
 
 ![Peek finding an invoice — read-only](assets/peek-demo.gif)
 
-Add Peek to Claude and it can search and read your inbox right inside a conversation. Ask "what did my bank send this week," "pull the invoice from Tuesday," or "summarize what I missed." Claude answers from your actual mail.
+Add Peek to Claude and it can search and read your inbox — **one account or several** — right inside a conversation. Point it at your work, personal, and business Gmail, and ask across all of them at once: "what did any of my accounts get from the bank this week," "pull the invoice from Tuesday," "summarize what I missed." Claude answers from your actual mail, and every result tells you which inbox it came from.
 
 ## Why Peek is different
 
@@ -18,7 +18,7 @@ Peek is **read-only by construction, not by promise.** It opens your mailbox in 
 ## Install (Claude Desktop)
 
 1. Download `peek-mail.mcpb` and double-click it. Claude Desktop installs the extension.
-2. In the extension settings, enter your **Gmail address** and a **Gmail app password**.
+2. In the extension settings, enter a **Gmail address** and a **Gmail app password** — and, if you want, a second and third inbox to read them all together.
 3. Ask Claude about your email.
 
 ### Getting a Gmail app password (about 2 minutes)
