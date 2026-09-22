@@ -2,6 +2,8 @@
 
 **Let Claude read your Gmail, safely.**
 
+![Peek finding an invoice — read-only](assets/peek-demo.gif)
+
 Add Peek to Claude and it can search and read your inbox right inside a conversation. Ask "what did my bank send this week," "pull the invoice from Tuesday," or "summarize what I missed." Claude answers from your actual mail.
 
 ## Why Peek is different
