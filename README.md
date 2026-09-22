@@ -63,6 +63,10 @@ See [SECURITY.md](SECURITY.md) for the full read-only guarantee.
 
 Mail content Claude reads through Peek is treated as untrusted data. Instructions that happen to appear inside an email are never followed as commands. This is standard prompt-injection hygiene.
 
+## Contact
+
+Questions, press, or partnership? Email **hello@consultwithaim.com**, [open an issue](https://github.com/AIM-Did-It/peek/issues), or start a [discussion](https://github.com/AIM-Did-It/peek/discussions).
+
 ## License
 
 MIT. Built by [AIM Consulting LLC](https://consultwithaim.com).

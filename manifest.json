@@ -7,7 +7,8 @@
   "long_description": "Peek gives Claude read-only access to your Gmail. Add one inbox or several (work, personal, business), and Claude can search and read across all of them in a single conversation — 'what did any of my accounts get from the bank this week?'\n\nThe part that matters: Peek is read-only by design, not by promise. It opens each mailbox in IMAP read-only mode and only ever peeks at messages, so it cannot mark anything read, move it, delete it, or send on your behalf — for any number of accounts. The code has no write path at all; you can read it and confirm.\n\nNo servers and no cloud. Your credentials are stored in your operating system's keychain and never leave your machine. Revoke any account's access any time from your Google account.",
   "author": {
     "name": "AIM Consulting LLC",
-    "url": "https://consultwithaim.com"
+    "url": "https://consultwithaim.com",
+    "email": "hello@consultwithaim.com"
   },
   "homepage": "https://consultwithaim.com",
   "license": "MIT",

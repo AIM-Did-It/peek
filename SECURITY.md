@@ -33,4 +33,4 @@ Mail that Peek reads is treated as **untrusted data**. If an email contains text
 
 ## Reporting
 
-Found something? Open an issue, or contact AIM Consulting at https://consultwithaim.com.
+Found something? Email **hello@consultwithaim.com**, or open an issue. AIM Consulting — https://consultwithaim.com.
